@@ -1,0 +1,298 @@
+{
+	"AWSTemplateFormatVersion": "2010-09-09",	
+	"Description" : "IDW Cognito Service CF",
+	"Metadata" : {
+		"AWS::CloudFormation::Interface" : {
+			"ParameterGroups" : [
+				{
+					"Label" : { "default" : "Global Name" },
+					"Parameters" : [ "ApplicationName", "EnvironmentType" ]
+				}
+			]
+		}
+	},
+	
+	"Parameters" : {	
+		"ApplicationName": {
+			"Description": "The Application Name",
+			"Type": "String",
+			"Default": "idw",
+			"AllowedPattern" : "[a-zA-Z-][a-zA-Z0-9-]*",
+			"ConstraintDescription": "Must begin with a letter and contain only alphanumeric characters."
+		},
+		"EnvironmentType": {
+			"Description": "The environment type",
+			"Type": "String",
+			"AllowedPattern" : "[a-zA-Z-][a-zA-Z0-9-]*",
+			"ConstraintDescription": "Must begin with a letter and contain only alphanumeric characters."
+		}
+	},
+
+"Resources": {
+	
+	"UserPool" :{
+		"Type" : "AWS::Cognito::UserPool",
+		"Properties" : {
+				"UserPoolName" :  {"Fn::Join" : ["-", [{"Ref" : "EnvironmentType"},{"Ref" : "ApplicationName"},"userpool-cognito"]]},
+				"AdminCreateUserConfig" : {
+				
+						"AllowAdminCreateUserOnly" :  false,
+						"UnusedAccountValidityDays" : 7,
+						"InviteMessageTemplate" : {
+								"EmailMessage" : "Your username is {username} and temporary password is {####}. ",
+								"EmailSubject" : "Your temporary password",
+								"SMSMessage" : "Your username is {username} and temporary password is {####}."
+						}
+				
+				},
+				"Policies"	: {
+					"PasswordPolicy" : 
+							{
+							  "MinimumLength" : 8,
+							  "RequireLowercase" : true,
+							  "RequireNumbers" : true,
+							  "RequireSymbols" : true,
+							  "RequireUppercase" : true
+							}
+				},  
+   
+    "Schema" : [
+				
+					{
+					  "AttributeDataType" : "String",
+					   "Mutable" : true,
+					  "Name" : "companyname",
+					  "StringAttributeConstraints" : {
+								"MaxLength" : "256",
+								"MinLength" : "1"
+						},
+					  "Required" : false
+					},
+					{
+					"AttributeDataType" : "String",
+					   "Mutable" : true,
+					  "Name" : "DDSAccountNumber",
+					  "StringAttributeConstraints" : {
+								"MaxLength" : "256",
+								"MinLength" : "1"
+						},
+					  "Required" : false
+					},
+					
+					{
+						
+						"Name" : "email",
+						"Required" : true
+					},
+					{
+						
+						"Name" : "gender",
+						"Required" : true
+					},
+					{
+						
+						"Name" : "name",
+						"Required" : true
+					},
+					{
+						
+						"Name" : "phone_number",
+						"Required" : true
+					}
+				
+	],
+	"MfaConfiguration" : "OFF",
+	"AutoVerifiedAttributes" : ["email"],
+	
+	"EmailVerificationSubject":"Your verification link",
+	"EmailVerificationMessage": "Please click the link below to verify your email address. {####} "
+	
+   
+	}
+		
+  },
+  
+  "UserPoolclient" : {
+			  "Type" : "AWS::Cognito::UserPoolClient",
+			  "Properties" : {
+					"ClientName" : {"Fn::Join" : ["-", [{"Ref" : "EnvironmentType"},{"Ref" : "ApplicationName"},"AppClient"]]},
+					"GenerateSecret" : false,
+					"RefreshTokenValidity" : 30,
+					"UserPoolId" : {"Ref": "UserPool"}
+					
+				}
+	},
+	
+	"IdentityPool" : {
+		  "Type" : "AWS::Cognito::IdentityPool",
+		  "Properties" : {
+				"IdentityPoolName" : {"Fn::Join" : ["_", [{"Ref" : "EnvironmentType"},{"Ref" : "ApplicationName"},"cognito_identity_pool"]]},
+				"AllowUnauthenticatedIdentities" : false, 
+				"CognitoIdentityProviders" : [ 					{
+							  "ClientId" : {"Ref" : "UserPoolclient"},
+							  "ProviderName" : {"Fn::GetAtt": ["UserPool","ProviderName"] }
+							 
+					}                ]
+				
+		  }	
+	},
+
+"CognitoUnAuthorizedRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Principal": {
+                                "Federated": "cognito-identity.amazonaws.com"
+                            },
+                            "Action": [
+                                "sts:AssumeRoleWithWebIdentity"
+                            ],
+                            "Condition": {
+                                "StringEquals": {
+                                    "cognito-identity.amazonaws.com:aud": {
+                                        "Ref": "IdentityPool"
+                                    }
+                                },
+                                "ForAnyValue:StringLike": {
+                                    "cognito-identity.amazonaws.com:amr": "unauthenticated"
+                                }
+                            }
+                        }
+                    ]
+                },
+				"RoleName" :  {"Fn::Join" : ["-", [{"Ref" : "EnvironmentType"},{"Ref" : "ApplicationName"},"cognito-identitypool-unauthrole-role"]]},
+                "Policies": [
+                    {
+                        "PolicyName":  {"Fn::Join" : ["-", [{"Ref" : "EnvironmentType"},{"Ref" : "ApplicationName"},"cognito_identity_poolUnauth_policy"]]},
+                        "PolicyDocument": {
+                            "Version": "2012-10-17",
+                            "Statement": [
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "mobileanalytics:PutEvents",
+                                        "cognito-sync:*"
+                                    ],
+                                    "Resource": "*"
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        },	
+		
+		 "CognitoAuthorizedRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Principal": {
+                                "Federated": "cognito-identity.amazonaws.com"
+                            },
+                            "Action": [
+                                "sts:AssumeRoleWithWebIdentity"
+                            ],
+                            "Condition": {
+                                "StringEquals": {
+                                    "cognito-identity.amazonaws.com:aud": {
+                                        "Ref": "IdentityPool"
+                                    }
+                                },
+                                "ForAnyValue:StringLike": {
+                                    "cognito-identity.amazonaws.com:amr": "authenticated"
+                                }
+                            }
+                        }
+                    ]
+                },
+				"RoleName" :  {"Fn::Join" : ["-", [{"Ref" : "EnvironmentType"},{"Ref" : "ApplicationName"},"cognito-identitypool-authrole-role"]]},
+                "Policies": [
+                    {
+                        "PolicyName": {"Fn::Join" : ["-", [{"Ref" : "EnvironmentType"},{"Ref" : "ApplicationName"},"cognito_identity_poolauth_policy"]]},
+                        "PolicyDocument": {
+                            "Version": "2012-10-17",
+                            "Statement": [
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "mobileanalytics:PutEvents",
+                                        "cognito-sync:*",
+                                        "cognito-identity:*"
+                                    ],
+                                    "Resource": "*"
+                                },
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "lambda:InvokeFunction"
+                                    ],
+                                    "Resource": "*"
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        },
+		
+		 "IdentityPoolRoleMapping": {
+            "Type": "AWS::Cognito::IdentityPoolRoleAttachment",
+            "Properties": {
+                "IdentityPoolId": {
+                    "Ref": "IdentityPool"
+                },
+                "Roles": {
+                    "authenticated": {
+                        "Fn::GetAtt": [
+                            "CognitoAuthorizedRole",
+                            "Arn"
+                        ]
+                    },
+                    "unauthenticated": {
+                        "Fn::GetAtt": [
+                            "CognitoUnAuthorizedRole",
+                            "Arn"
+                        ]
+                    }
+                }
+            }
+        }
+	
+
+    },
+	"Outputs": {
+        "UserPoolId": {
+            "Value": {
+                "Ref": "UserPool"
+            },
+            "Export": {
+                "Name": "UserPool::Id"
+            }
+        },
+        "UserPoolClientId": {
+            "Value": {
+                "Ref": "UserPoolclient"
+            },
+            "Export": {
+                "Name": "UserPoolclient::Id"
+            }
+        },
+        "IdentityPoolId": {
+            "Value": {
+                "Ref": "IdentityPool"
+            },
+            "Export": {
+                "Name": "IdentityPool::Id"
+            }
+        }
+    }
+	
+}

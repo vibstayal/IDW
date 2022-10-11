@@ -1,0 +1,165 @@
+{
+	"AWSTemplateFormatVersion": "2010-09-09",
+	"Description": "IDW Lambda Cloud Formation Script",
+	"Metadata" : {
+		"AWS::CloudFormation::Interface" : {
+			"ParameterGroups" : [
+				{
+					"Label" : { "default" : "Global Name" },
+					"Parameters" : [ "EnvironmentType" ]
+				},
+				{
+					"Label" : { "default":"Lambda Configuration" },
+					"Parameters" : [ "LambdaFunctionName" , "LambdaCodeBucketName" ,"LambdaZipFileName" , "VPC", "LambdaSubnetIds"]
+				}
+			]
+		}
+	},
+	"Parameters" : {
+		"EnvironmentType": {
+			"Description": "The environment type",
+			"Type": "String",
+			"Default": "q",
+			"AllowedValues" : [ "d", "q", "u", "p"],
+			"ConstraintDescription": "Select Environment type from Drop-down."
+		},
+		"LambdaFunctionName":{
+			"Description": "Lambda Function Name",
+			"Type": "String",
+			"Default": "idwstore_idwService"
+		},
+		"LambdaCodeBucketName":{
+			"Description": "Mention S3 Bucket Name(idw-prod-lambda) in which Lambda Code is there.",
+			"Type": "String",
+			"ConstraintDescription" : "Must be a valid S3 Bucket Name."
+		},
+		"LambdaZipFileName":{
+			"Description": "Mention Lambda Zip File Name which is there in S3 Bucket. Ex. index.zip",
+			"Type": "String",
+			"ConstraintDescription" : "Must be a valid Lambda File Name."
+		},
+		"LambdaSubnetIds":{
+			"Description": "Select SubnetIds in which Lambda Function will reside.", 
+			"Type" : "List<AWS::EC2::Subnet::Id>",
+			"ConstraintDescription" : "Must select Subnet ID from drop-down."
+		},
+		"VPC": {
+			"Description": "Select VPC in which Lambda and its Security Group will reside",
+			"Type": "AWS::EC2::VPC::Id"
+		}   
+	},
+	"Resources": {
+		"IDWLambdaFunction": {
+			"Type": "AWS::Lambda::Function",
+			"Properties": {
+				"Description": "Lambda Function for IDW",
+				"Handler": "index.handler",
+				"MemorySize": 128,
+				"Role": {
+					"Fn::GetAtt": ["IDWLambdaIAMFunctionRole", "Arn"]
+				},
+				"FunctionName" : {"Fn::Join" : ["-", [{"Ref" : "LambdaFunctionName"},{"Ref" : "EnvironmentType"}]]},
+				"Code": {
+					"S3Bucket" : {"Ref" : "LambdaCodeBucketName"},
+					"S3Key" : {"Ref":"LambdaZipFileName"}
+				},
+				"VpcConfig" : { "SecurityGroupIds" : [{"Ref" : "LambdaSecurityGroup"}],"SubnetIds" : {"Ref":"LambdaSubnetIds"} },
+				"Runtime": "nodejs6.10",
+				"Timeout": "300",
+				"Tags": [
+					{"Key": "AWS Service","Value": "Lambda"}
+				]
+			}
+		},
+		"IDWLambdaIAMFunctionRole": {
+			"Type": "AWS::IAM::Role",
+			"Properties": {
+				"AssumeRolePolicyDocument": {
+					"Version": "2012-10-17",
+					"Statement": [
+						{
+							"Effect": "Allow",
+							"Principal": {
+								"Service": [
+									"lambda.amazonaws.com"
+								]
+							},
+							"Action": [
+								"sts:AssumeRole"
+							]
+						}
+					]
+				},
+				"RoleName" : {"Fn::Join" : ["-", [{"Ref" : "EnvironmentType"}, "IDW-Lambda-Role"]]},
+				"Path": "/"
+			}
+		},
+		"IDWLambdaFunctionPolicy": {
+			"Type": "AWS::IAM::Policy",
+			"Properties": {
+				"PolicyName": {"Fn::Join" : ["-", ["IDWLambdaFunctionPolicy",{"Ref" : "EnvironmentType"}]]},
+				"PolicyDocument": {
+					"Version": "2012-10-17",
+					"Statement": [
+						{
+							"Effect": "Allow",
+							"Action": [
+								"logs:CreateLogGroup",
+								"logs:CreateLogStream",
+								"logs:PutLogEvents",
+								"logs:PutLogEvents",
+								"ec2:CreateNetworkInterface",
+								"ec2:DescribeNetworkInterfaces",
+								"ec2:DeleteNetworkInterface"
+							],
+							"Resource": "*"
+						}
+					]
+				},
+				"Roles": [
+					{
+						"Ref": "IDWLambdaIAMFunctionRole"
+					}
+				]
+			}
+		},
+		"LambdaSecurityGroup" : {
+			"Type" : "AWS::EC2::SecurityGroup",
+			"Properties" : {
+				"VpcId" : {
+					"Ref" : "VPC"
+				},
+				"Tags": [
+					{"Key": "AWS Service","Value": "Security Group"},{"Key": "Name","Value": {"Fn::Join" : ["-", ["IDWLambdaSecurityGroup",{"Ref" : "EnvironmentType"}]]}}
+				],
+				"GroupDescription" : "Lambda SecurityGroup"
+			}
+		},
+		"InboundRule1LambdaSecurityGroup": {
+			"Type": "AWS::EC2::SecurityGroupIngress",
+			"Properties": {
+				"GroupId": {
+					"Ref": "LambdaSecurityGroup"
+				},
+				"IpProtocol": "-1",
+				"FromPort": "0",
+				"ToPort": "65535",
+				"SourceSecurityGroupId" : { "Ref" : "LambdaSecurityGroup" }
+			}
+		},
+		"LambdaAlias" : {
+			"Type" : "AWS::Lambda::Alias",
+			"Properties" : {
+				"FunctionName" : {"Ref" : "IDWLambdaFunction"},
+				"FunctionVersion" : {"Fn::GetAtt" : [ "LambdaVersion", "Version" ]},
+				"Name" : "wired"
+			}
+		},
+		"LambdaVersion" : {
+			"Type" : "AWS::Lambda::Version",
+			"Properties" : {
+				"FunctionName" : {"Ref" : "IDWLambdaFunction"}
+			}
+		}
+	}
+}

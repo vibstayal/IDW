@@ -1,0 +1,103 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+
+  "Description" : "AWS CloudFormation for create SNS Topic",
+"Metadata": {
+        "AWS::CloudFormation::Interface": {
+            "ParameterGroups": [
+                {
+                    "Label": {
+                        "default": "Global Name"
+                    },
+                    "Parameters": [
+                        "ApplicationName",
+                        "EnvironmentType"
+                    ]
+                },
+                {
+                    "Label": {
+                        "default": "SNS configuration"
+                    },
+                    "Parameters": [
+                        "Recipient"
+                                            ]
+                }
+               
+            ]
+        }
+    },
+  "Parameters" : {
+    
+    "Recipient" : {
+      "Default" : "RnRonCloud@lseg.com",
+      "Description" : "EMail address to notify if there are any operational issues",
+      "Type" : "String"
+    },
+	
+	"EnvironmentType": {
+            "Description": "The environment type",
+            "Type": "String",
+            "AllowedPattern": "[a-zA-Z][a-zA-Z0-9]*",
+            "ConstraintDescription": "Must begin with a letter and contain only alphanumeric characters."
+        },
+	"ApplicationName": {
+            "Description": "The Application Name",
+            "Type": "String",
+            "Default": "RnR",
+            "AllowedPattern": "[a-zA-Z][a-zA-Z0-9]*",
+            "ConstraintDescription": "Must begin with a letter and contain only alphanumeric characters."
+        }
+	
+	
+   
+ 
+  },
+
+  
+  "Resources" : {
+
+"AlarmTopic" : {
+      "Type" : "AWS::SNS::Topic",
+      "Properties" : {
+		  "DisplayName" :{
+					"Fn::Join": [
+						"-", [{
+								"Ref": "EnvironmentType"
+							},
+							{
+								"Ref": "ApplicationName"
+							},
+							"SNS-Alerts"
+						]
+					]
+				},
+		  "TopicName":{
+					"Fn::Join": [
+						"-", [{
+								"Ref": "EnvironmentType"
+							},
+							{
+								"Ref": "ApplicationName"
+							},
+							"SNS-Alerts"
+						]
+					]
+				},
+        "Subscription" : [ {
+          "Endpoint" : { "Ref" : "Recipient" },
+          "Protocol" : "email"
+        } ]
+      }
+    }
+      
+
+  },
+
+  "Outputs" : {
+    "TopicName" : {
+      "Description" : "SNS Topic Name",
+	"Value" : {"Ref" : "AlarmTopic"},
+	"Export" : { "Name" :{"Fn::Sub":"CloudtrailTopicName"}}
+    }
+  }
+}

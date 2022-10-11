@@ -1,0 +1,205 @@
+{
+	"AWSTemplateFormatVersion": "2010-09-09",	
+	"Description" : "IDW Backend CF",
+	"Metadata" : {
+		"AWS::CloudFormation::Interface" : {
+			"ParameterGroups" : [
+				{
+					"Label" : { "default" : "Global Name" },
+					"Parameters" : [ "ApplicationName", "EnvironmentType" ]
+				},
+				{
+					"Label" : { "default" : "VPC & Subnet Configuration" },
+					"Parameters" : [ "VPC", "IdwPrivateSubnet1a", "IdwPrivateSubnet1b"]
+				},
+						
+				{
+					"Label" : { "default":"Redshift Database Configuration" },
+					"Parameters" : ["RedshiftDBName", "RedshiftDBUsername", "RedshiftDBPassword","RedshiftAZ"]
+				}
+			]
+		}
+	},
+
+"Parameters" : {	
+			"ApplicationName": {
+			"Description": "The Application Name",
+			"Type": "String",
+			"Default": "IDW",
+			"AllowedPattern" : "[a-zA-Z-][a-zA-Z0-9-]*",
+			"ConstraintDescription": "Must begin with a letter and contain only alphanumeric characters."
+		},
+		"EnvironmentType": {
+			"Description": "The environment type",
+			"Type": "String",
+			"AllowedPattern" : "[a-zA-Z-][a-zA-Z0-9-]*",
+			"ConstraintDescription": "Must begin with a letter and contain only alphanumeric characters."
+		},
+		"VPC": {
+			"Description": "Select VPC for your stcak", 
+			"Type" : "AWS::EC2::VPC::Id",
+			"ConstraintDescription" : "Must select VPC from drop-down."
+		},
+		"RedshiftAZ": {
+			"Description": "Select AZ for your RDS",
+			"Type": "AWS::EC2::AvailabilityZone::Name",
+			"ConstraintDescription": "Must select AZ from drop-down."
+		},
+		"IdwPrivateSubnet1a": {
+            "Description": "Select AZ for your Private Subnet",
+            "Type": "AWS::EC2::Subnet::Id",
+            "ConstraintDescription": "Must select AZ from drop-down."
+        },
+		"IdwPrivateSubnet1b": {
+            "Description": "Select AZ for your Private Subnet",
+            "Type": "AWS::EC2::Subnet::Id",
+            "ConstraintDescription": "Must select AZ from drop-down."
+        },
+		"RedshiftDBName" : {
+			"NoEcho": "false",
+			"Description" : "The Database Name",
+			"Type": "String",
+			"MinLength": "1",
+			"MaxLength": "25",
+			"AllowedPattern" : "[a-z]*",
+			"ConstraintDescription" : "must contain only lower case alphabates."
+		},
+		"RedshiftDBUsername" : {
+			"Default": "admin",
+			"NoEcho": "false",
+			"Description" : "The Database username",
+			"Type": "String",
+			"MinLength": "1",
+			"MaxLength": "25",
+			"AllowedPattern" : "[a-z]*",
+			"ConstraintDescription" : "must contain only lower case alphabates."
+		},
+		"RedshiftDBPassword" : {
+			"NoEcho": "true",
+			"Description" : "The Database password",
+			"Type": "String",
+			"MinLength": "8",
+			"MaxLength": "41",
+			"AllowedPattern" : "[a-zA-Z0-9]*",
+			"ConstraintDescription" : "must contain only alphanumeric characters."
+		}
+	
+},
+
+"Resources": {
+	
+		"IAMRoleRedShift" : {
+			"Description" : "q-idw-redshift-role",
+			"Type": "AWS::IAM::Role",
+			"Properties": {
+				"AssumeRolePolicyDocument": {
+					"Version" : "2012-10-17",
+					"Statement": [ {
+						"Effect": "Allow",
+						"Principal": {
+							"Service": [ "redshift.amazonaws.com" ]
+						},
+						"Action": [ "sts:AssumeRole" ]
+					} ]
+				},
+				"Path": "/",
+				"ManagedPolicyArns" : [
+					"arn:aws:iam::aws:policy/AmazonRDSFullAccess",
+					"arn:aws:iam::aws:policy/AmazonEC2FullAccess",
+					"arn:aws:iam::aws:policy/AmazonS3FullAccess",
+					"arn:aws:iam::aws:policy/AmazonElasticMapReduceFullAccess"
+				],
+				"RoleName" :  {"Fn::Join" : ["-", [{"Ref" : "EnvironmentType"},{"Ref" : "ApplicationName"},"Redshift-Role"]]}
+			}
+		},
+		"RedshiftCluster":{
+					"Type":"AWS::Redshift::Cluster",
+					"Properties":{
+						"AllowVersionUpgrade" : true,
+						"ClusterIdentifier" : {"Fn::Join" : ["-", [{"Ref" : "EnvironmentType"},{"Ref" : "ApplicationName"},"redshift-cluster"]]},
+						"AutomatedSnapshotRetentionPeriod" : 7,
+						"AvailabilityZone" : {"Ref" : "RedshiftAZ"},
+						"ClusterParameterGroupName" : {"Ref" : "RedshiftDBParameterGroup"},
+						"VpcSecurityGroupIds" : [{"Ref" : "RedshiftSG"}],
+						"ClusterSubnetGroupName" : {"Ref" : "RedshiftSubnetGroup"},
+						"ClusterType": "multi-node",
+						"NumberOfNodes" : 2,
+						"DBName" : {"Ref" : "RedshiftDBName"},
+						"IamRoles" : [{"Fn::GetAtt" : ["IAMRoleRedShift", "Arn"] }],
+						"MasterUsername" : {"Ref" : "RedshiftDBUsername"},
+						"MasterUserPassword" : {"Ref" : "RedshiftDBPassword"},
+						"NodeType": "dc2.8xlarge",
+						"Port" : 5439,
+						"PubliclyAccessible" : false,
+						"Tags" : [ 
+						{
+								"Key" : "AWS Service", 
+								"Value" : "Redshift"
+						},
+						{
+							"Key": "Name",
+							"Value": "q-idw-redshift"
+						}
+						]
+					}
+				},
+				
+		"RedshiftDBParameterGroup" : {
+				"Type": "AWS::Redshift::ClusterParameterGroup",
+				"Properties" : {
+					"Description" : "Redshift Parameter Group",
+					"ParameterGroupFamily" : "redshift-1.0",
+					"Parameters" : [ {
+						"ParameterName" : "enable_user_activity_logging",
+						"ParameterValue" : "true"
+					},
+					{
+						"ParameterName": "wlm_json_configuration",
+						"ParameterValue":"[{\"query_concurrency\":50}]"
+					}
+					],
+					"Tags": [ 
+						{
+							"Key" : "AWS Service", 
+							"Value" : "Parameter Group"
+						},
+						{
+							"Key": "Name",
+							"Value": "q-idw-parameter-group"
+						}
+					]
+				}
+		},
+		
+		"RedshiftSG" : { 
+				"Type": "AWS::EC2::SecurityGroup",
+				"Properties": {
+					"GroupDescription": "q-idw-redshift-SG",
+					"GroupName" : {"Fn::Join" : ["-", [{"Ref" : "EnvironmentType"},{"Ref" : "ApplicationName"},"Redshift-SG"]]},
+					"VpcId": {"Ref": "VPC"},
+					"Tags" : [ 
+					 	{"Key" : "AWS Service", "Value" : "Security Group"},
+						{"Key" : "Name", "Value" : "q-idw-redshift-sg"} 
+					]
+				}
+		},
+		
+		"RedshiftSubnetGroup" : {
+				"Type":"AWS::Redshift::ClusterSubnetGroup",
+				"Properties":{
+					"Description":"Subnets available for the RDS DB Instance",
+					"SubnetIds":[{
+						"Ref":"IdwPrivateSubnet1a"
+					},
+					{
+						"Ref":"IdwPrivateSubnet1b"
+					}],
+					"Tags": [ 
+						{"Key" : "AWS Service", "Value" : "Subnet Group"},
+						{"Key": "Name","Value": "q-idw-redshift-subnet-group"}
+					]
+				}
+		}
+				
+}
+}

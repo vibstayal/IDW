@@ -1,0 +1,164 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "IDW Lambda Cloud Formation Script",
+    "Metadata" : {
+        "AWS::CloudFormation::Interface" : {
+            "ParameterGroups" : [
+                {
+                    "Label" : { "default" : "Global Name" },
+                    "Parameters" : [ "ApplicationName", "EnvironmentType" ]
+                },
+                {
+                    "Label" : { "default" : "VPC & Subnet Configuration" },
+                    "Parameters" : [ "VPC", "SubnetIds" ]
+                },
+                {
+                    "Label" : { "default":"Database Configuration" },
+                    "Parameters" : ["RDSDBName", "DBUsername", "DBPassword","RDSAZ"]
+                }
+            ]
+        }
+    },
+    "Parameters" : {
+        "ApplicationName": {
+            "Description": "The Application Name",
+            "Type": "String",
+            "Default": "IDW",
+            "AllowedPattern" : "[a-zA-Z-][a-zA-Z0-9-]*",
+            "ConstraintDescription": "Must begin with a letter and contain only alphanumeric characters."
+        },
+        "EnvironmentType": {
+            "Description": "The environment type",
+            "Type": "String",
+            "AllowedPattern" : "[a-zA-Z-][a-zA-Z0-9-]*",
+            "ConstraintDescription": "Must begin with a letter and contain only alphanumeric characters."
+        },
+        "VPC": {
+            "Description": "Select VPC for your stcak", 
+            "Type" : "AWS::EC2::VPC::Id",
+            "ConstraintDescription" : "Must select VPC from drop-down."
+        },
+        "SubnetId1A":{
+            "Description": "Select SubnetIds in two different AZs for Subnet Groups.", 
+            "Type" : "AWS::EC2::Subnet::Id",
+            "ConstraintDescription" : "Must select Subnet ID from drop-down."
+        },
+        "SubnetId1B":{
+            "Description": "Select SubnetIds in two different AZs for Subnet Groups.", 
+            "Type" : "AWS::EC2::Subnet::Id",
+            "ConstraintDescription" : "Must select Subnet ID from drop-down."
+        },
+        "RDSAZ": {
+            "Description": "Select AZ for your RDS",
+            "Type": "AWS::EC2::AvailabilityZone::Name",
+            "ConstraintDescription": "Must select AZ from drop-down."
+        },
+        "RDSDBName" : {
+            "NoEcho": "false",
+            "Description" : "The Database Name",
+            "Type": "String",
+            "MinLength": "1",
+            "MaxLength": "25",
+            "AllowedPattern" : "[a-z]*",
+            "ConstraintDescription" : "must contain only lower case alphabates."
+        },
+        "DBUsername" : {
+            "NoEcho": "false",
+            "Description" : "The Database username",
+            "Type": "String",
+            "MinLength": "1",
+            "MaxLength": "25",
+            "AllowedPattern" : "[a-z]*",
+            "ConstraintDescription" : "must contain only lower case alphabates."
+        },
+        "DBPassword" : {
+            "NoEcho": "true",
+            "Description" : "The Database password",
+            "Type": "String",
+            "MinLength": "8",
+            "MaxLength": "41",
+            "AllowedPattern" : "[a-zA-Z0-9]*",
+            "ConstraintDescription" : "must contain only alphanumeric characters."
+        }   
+    },
+    "Resources": {
+        "sgIDWPreProdRDSSG": {
+            "Type": "AWS::EC2::SecurityGroup",
+            "Properties": {
+                "GroupDescription": "IDW-PROD-RDS-SG",
+                "GroupName" : {"Fn::Join" : ["-", [{"Ref" : "ApplicationName"},{"Ref" : "EnvironmentType"},"RDS-SG"]]},
+                "VpcId": {"Ref": "VPC"},
+                "Tags" : [ {"Key" : "AWS Service", "Value" : "Security Group"},{"Key" : "Name", "Value" : "IDW PROD RDS SG"}]
+            }
+        },
+        "IdwRdsSubnetGroup":{
+            "Type":"AWS::RDS::DBSubnetGroup",
+            "Properties":{
+                "DBSubnetGroupDescription":"Subnets available for the RDS DB Instance",
+                "SubnetIds":[{
+                    "Ref":"SubnetId1A"
+                },
+                {"Ref" : "SubnetId1B"}
+                ],
+                "Tags": [ {"Key" : "AWS Service", "Value" : "Subnet Group"},
+                    {
+                        "Key": "Name",
+                        "Value": "RDS Postgres PROD Subnet Group"
+                    }
+                ]
+            }
+        },
+        "RdsPostgreDBParameterGroup": {
+            "Type": "AWS::RDS::DBParameterGroup",
+            "Properties" : {
+                "Description" : "RDS SQL Server EE Parameter Group",
+                "Family" : "aurora-postgresql9.6",
+                "Tags": [ {"Key" : "AWS Service", "Value" : "Parameter Group"},{
+                    "Key": "Name",
+                    "Value": "RDS Postgres PROD Parameter Group"
+                }
+            ]
+            }
+        },
+        "IdwRds":{
+            "Type":"AWS::RDS::DBInstance",
+            "Properties":{
+                "DBClusterIdentifier" : {"Ref" : "IdwRdsCluster"},
+                "AutoMinorVersionUpgrade":"false",
+                "AllowMajorVersionUpgrade": "false",
+                "DBInstanceClass":"db.r4.large",
+                "DBInstanceIdentifier" : {"Fn::Join" : ["-", [{"Ref" : "ApplicationName"},{"Ref" : "EnvironmentType"},"RDS-Postgres"]]},
+                "DBSubnetGroupName":{
+                    "Ref":"IdwRdsSubnetGroup"
+                },
+                "DBParameterGroupName":{ "Ref": "RdsPostgreDBParameterGroup"},
+                "Engine":"aurora-postgresql",
+                "EngineVersion":"9.6.3",
+                "MultiAZ":"false",
+                "Tags":[ {"Key" : "AWS Service", "Value" : "RDS"},{
+                    "Key":"Name",
+                    "Value":"IDW PROD RDS Postgres "
+                } ]
+            }
+        },
+        "IdwRdsCluster" : {
+            "Type" : "AWS::RDS::DBCluster",
+            "Properties" : {
+                "DBClusterIdentifier" : "test-cluster",
+                "AvailabilityZones" : [{"Ref" : "RDSAZ"}],
+                "BackupRetentionPeriod": "1",
+                "DatabaseName" : {"Ref" : "RDSDBName"},
+                "DBClusterParameterGroupName": "default.aurora-postgresql9.6",
+                "DBSubnetGroupName":{ "Ref":"IdwRdsSubnetGroup" },
+                "Engine" :"aurora-postgresql",
+                "EngineVersion": "9.6.3",
+                "MasterUsername" : "testcluster",
+                "MasterUserPassword" : "TestAshDim",
+                "Port": "5432",
+                "PreferredBackupWindow": "08:47-09:17",
+                "PreferredMaintenanceWindow": "sat:08:00-sat:08:30",
+                "VpcSecurityGroupIds" : [{"Ref" : "sgIDWPreProdRDSSG"}]
+            }
+        }
+    }
+}

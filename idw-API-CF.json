@@ -1,0 +1,70 @@
+{
+	"AWSTemplateFormatVersion": "2010-09-09",
+	"Description": "IDW API gateway",
+	
+"Metadata" : {
+		"AWS::CloudFormation::Interface" : {
+			"ParameterGroups" : [
+				{
+					"Label" : { "default" : "Global Name" },
+					"Parameters" : [ "ApplicationName", "EnvironmentType" ]
+				},
+				{
+					"Label" : { "default" : "API Configuration" },
+					"Parameters" : [ "APIName"]
+				}
+			]
+		}
+	},
+			
+	
+"Parameters" : {	
+			"ApplicationName": {
+			"Description": "The Application Name",
+			"Type": "String",
+			"Default": "IDW",
+			"AllowedPattern" : "[a-zA-Z-][a-zA-Z0-9-]*",
+			"ConstraintDescription": "Must begin with a letter and contain only alphanumeric characters."
+		},
+		"EnvironmentType": {
+			"Description": "The environment type",
+			"Type": "String",
+			"AllowedPattern" : "[a-zA-Z-][a-zA-Z0-9-]*",
+			"ConstraintDescription": "Must begin with a letter and contain only alphanumeric characters."
+		},
+		"APIName" :
+		{
+			"Type": "String",
+			"Description": "Enter the API name Ex: Core-API"
+		}
+},
+
+"Resources":{
+	
+		"idwAPI":{
+			"Type" : "AWS::ApiGateway::RestApi",
+			  "Properties" : {  
+				"Description" : {"Fn::Join" : ["-", [{"Ref" : "EnvironmentType"},{"Ref" : "ApplicationName"},{"Ref" : "APIName"}]]},     
+				"EndpointConfiguration" : {
+						"Types" : [ "EDGE" ]
+					},
+				"Name" : {"Fn::Join" : ["-", [{"Ref" : "EnvironmentType"},{"Ref" : "ApplicationName"},{"Ref" : "APIName"}]]}
+				
+			  }
+		},
+		
+		"IDWApiResource": {
+			"Type": "AWS::ApiGateway::Resource",
+			"Properties": {
+				"ParentId": {"Fn::GetAtt": ["idwAPI","RootResourceId"]},
+				"PathPart": "{proxy+}",
+				"RestApiId": {"Ref": "idwAPI"}
+			}
+		}
+		
+	
+				
+		
+		}
+
+}

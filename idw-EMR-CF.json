@@ -1,0 +1,458 @@
+{
+	"AWSTemplateFormatVersion": "2010-09-09",	
+	"Description" : "IDW  Backend Stack",
+	"Metadata" : {
+		"AWS::CloudFormation::Interface" : {
+			"ParameterGroups" : [
+				{
+					"Label" : { "default" : "Global Name" },
+					"Parameters" : [ "ApplicationName", "EnvironmentType" ]
+				},
+				
+				{
+					"Label" : { "default" : "VPC & Subnet Configuration" },
+					"Parameters" : [ "VPC", "IdwPrivateSubnet1a" ]
+				},
+
+				
+				{
+					"Label" : { "default":"EMR Configuration" },
+					"Parameters" : ["EMRKeyName", "IDWEmrNumberOfNodes", "EmrHdfsStorageSize", "EmrMasterInstanceType", "EmrSlaveInstanceType"]
+				}
+			]
+		}
+	},
+	
+	"Parameters" : {	
+		"ApplicationName": {
+			"Description": "The Application Name",
+			"Type": "String",
+			"Default": "idw",
+			"AllowedPattern" : "[a-zA-Z-][a-zA-Z0-9-]*",
+			"ConstraintDescription": "Must begin with a letter and contain only alphanumeric characters."
+		},
+		"EnvironmentType": {
+			"Description": "The environment type",
+			"Type": "String",
+			"AllowedPattern" : "[a-zA-Z-][a-zA-Z0-9-]*",
+			"ConstraintDescription": "Must begin with a letter and contain only alphanumeric characters."
+		},
+		"VPC": {
+			"Description": "Select VPC for your stcak", 
+			"Type" : "AWS::EC2::VPC::Id",
+			"ConstraintDescription" : "Must select VPC from drop-down."
+		},
+		"IdwPrivateSubnet1a": {
+            "Description": "Select AZ for your Private Subnet",
+            "Type": "AWS::EC2::Subnet::Id",
+            "ConstraintDescription": "Must select AZ from drop-down."
+        },
+		
+		"EMRKeyName" : {
+			"Description": "Select Existing Key for EMR Ec2 Instances",
+			"Type" : "AWS::EC2::KeyPair::KeyName",
+			"ConstraintDescription" : "Must be the name of an existing EC2 KeyPair."
+		},
+		"IDWEMRNumberOfSlaveNodes" :{
+			"Description":" Enter Number of Slave Nodes required for EMR Cluster",
+			"Type": "String",
+			"AllowedPattern" : "[0-9]*"
+		},
+		"EmrHdfsStorageSize" : {
+			"Description":" Enter HDFS Storage required for EMR Cluster",
+			"Type": "String"
+		},
+		"EmrMasterInstanceType" : {
+			"Description": "Select EMR Master Instances Type",
+			"Type" : "String",
+			"Default" : "m4.xlarge",
+			"AllowedValues" : ["c1.medium", "c1.xlarge", "c3.xlarge", "c3.2xlarge", "c3.4xlarge", "c3.8xlarge", "c4.large", "c4.xlarge", "c4.2xlarge", "c4.4xlarge", "c4.8xlarge", "cc2.8xlarge", "cr1.8xlarge", "d2.xlarge", "d2.2xlarge", "d2.4xlarge", "d2.8xlarge", "g2.2xlarge", "hi1.4xlarge", "hs1.8xlarge", "i2.xlarge", "i2.2xlarge", "i2.4xlarge", "i2.8xlarge", "m1.medium", "m1.large", "m1.xlarge", "m2.xlarge", "m2.2xlarge", "m2.4xlarge", "m3.xlarge", "m3.2xlarge", "m4.large", "m4.xlarge", "m4.2xlarge", "m4.4xlarge", "m4.10xlarge", "m4.16xlarge", "r3.xlarge", "r3.2xlarge", "r3.4xlarge", "r3.8xlarge", "r4.xlarge", "r4.2xlarge", "r4.4xlarge", "r4.8xlarge", "r4.16xlarge"],
+			"ConstraintDescription" : "Select EMR Master Instances Type"
+		},
+		"EmrSlaveInstanceType" : {
+			"Description": "Select EMR Slave Instances Type",
+			"Type" : "String",
+			"Default" : "m4.xlarge",
+			"AllowedValues" : ["c1.medium", "c1.xlarge", "c3.xlarge", "c3.2xlarge", "c3.4xlarge", "c3.8xlarge", "c4.large", "c4.xlarge", "c4.2xlarge", "c4.4xlarge", "c4.8xlarge", "cc2.8xlarge", "cr1.8xlarge", "d2.xlarge", "d2.2xlarge", "d2.4xlarge", "d2.8xlarge", "g2.2xlarge", "hi1.4xlarge", "hs1.8xlarge", "i2.xlarge", "i2.2xlarge", "i2.4xlarge", "i2.8xlarge", "m1.medium", "m1.large", "m1.xlarge", "m2.xlarge", "m2.2xlarge", "m2.4xlarge", "m3.xlarge", "m3.2xlarge", "m4.large", "m4.xlarge", "m4.2xlarge", "m4.4xlarge", "m4.10xlarge", "m4.16xlarge", "r3.xlarge", "r3.2xlarge", "r3.4xlarge", "r3.8xlarge", "r4.xlarge", "r4.2xlarge", "r4.4xlarge", "r4.8xlarge", "r4.16xlarge"],
+			"ConstraintDescription" : "Select EMR Slave Instances Type"
+		}
+		
+	},
+	"Resources": {
+
+	"IdwEmrCluster": {
+			"Type": "AWS::EMR::Cluster",
+			"Properties": {
+				"Applications" : [
+					{ "Name" : "Hadoop" },
+					{ "Name" : "Hive" },
+					{ "Name" : "Sqoop" },
+					{ "Name" : "Pig" },
+					{ "Name" : "Oozie" },
+					{ "Name" : "Tez" },
+					{ "Name" : "Spark" },
+					{ "Name" : "Hue" }
+				],
+				"Instances": {
+					"MasterInstanceGroup": {
+						"InstanceCount": 1,
+						"InstanceType": {"Ref" : "EmrMasterInstanceType"},
+						"Market": "ON_DEMAND",
+						"Name": "Master",
+						"EbsConfiguration": 
+						{
+							"EbsBlockDeviceConfigs":
+							[
+								{
+									"VolumeSpecification":{"SizeInGB": {"Ref" : "EmrHdfsStorageSize"}, "VolumeType":"gp2"},
+									"VolumesPerInstance":1
+								}
+							],
+							"EbsOptimized":true
+						}
+					},
+					"CoreInstanceGroup": {
+						"InstanceCount": {"Ref" : "IDWEMRNumberOfSlaveNodes"},
+						"InstanceType": {"Ref" : "EmrSlaveInstanceType"},
+						"Market": "ON_DEMAND",
+						"Name": "Core",
+						"EbsConfiguration": 
+						{
+							"EbsBlockDeviceConfigs":
+							[
+								{
+									"VolumeSpecification":{"SizeInGB": {"Ref" : "EmrHdfsStorageSize"}, "VolumeType":"gp2"},
+									"VolumesPerInstance":1
+								}
+							],
+							"EbsOptimized":true
+						}
+					},
+					"EmrManagedMasterSecurityGroup" : {"Ref" : "sgElasticMapReducemaster"},
+					"EmrManagedSlaveSecurityGroup" : {"Ref" : "sgElasticMapReduceslave"},
+					"ServiceAccessSecurityGroup" :{"Ref" : "sgElasticMapReduceService"},
+					"Ec2KeyName" : {"Ref" : "EMRKeyName"},
+					"Ec2SubnetId" : {"Ref" : "IdwPrivateSubnet1a"},
+					"TerminationProtected" : false
+				},
+				"Name": {"Fn::Join" : ["-", [{"Ref" : "EnvironmentType"},{"Ref" : "ApplicationName"},"emr-cluster"]]},
+				"JobFlowRole": {"Ref" : "IAMRoleEMREC2Profile"},
+				"ServiceRole": {"Ref" : "IAMRoleEMR"},
+				"ReleaseLabel": "emr-5.13.0",
+				"VisibleToAllUsers" :true,
+				"Tags" : [ {"Key" : "AWS Service", "Value" : "EMR"}]
+			}
+		},
+		
+		"sgElasticMapReducemaster": {
+			"Type": "AWS::EC2::SecurityGroup",
+			"Properties": {
+				"GroupDescription": "Master group for Elastic MapReduce",
+				"GroupName" : {"Fn::Join" : ["-", [{"Ref" : "EnvironmentType"},{"Ref" : "ApplicationName"},"emr-master-sg"]]},
+				"VpcId": {"Ref": "VPC"},
+				"Tags" : [ 
+					{"Key" : "Name", "Value" : {"Fn::Join" : ["-", [{"Ref" : "EnvironmentType"},{"Ref" : "ApplicationName"},"emr-master-sg"]]}},
+					{"Key" : "AWS Service", "Value" : "Security Group"}
+				]
+			}
+		},
+		"sgElasticMapReduceslave": {
+			"Type": "AWS::EC2::SecurityGroup",
+			"Properties": {
+				"GroupDescription": "Slave group for Elastic MapReduce",
+				"GroupName" : {"Fn::Join" : ["-", [{"Ref" : "EnvironmentType"},{"Ref" : "ApplicationName"},"emr-slave-sg"]]},
+				"VpcId": {"Ref": "VPC"},
+				"Tags" : [ 
+					{"Key" : "Name", "Value" : {"Fn::Join" : ["-", [{"Ref" : "EnvironmentType"},{"Ref" : "ApplicationName"},"emr-slave-sg"]]}},
+					{"Key" : "AWS Service", "Value" : "Security Group"}
+				]
+			}
+		},
+		"sgElasticMapReduceService": {
+			"Type": "AWS::EC2::SecurityGroup",
+			"Properties": {
+				"GroupDescription": "Service group for Elastic MapReduce",
+				"GroupName" : {"Fn::Join" : ["-", [{"Ref" : "EnvironmentType"},{"Ref" : "ApplicationName"},"emr-service-sg"]]},
+				"VpcId": {"Ref": "VPC"},
+				"Tags" : [ 
+					{"Key" : "Name", "Value" : {"Fn::Join" : ["-", [{"Ref" : "EnvironmentType"},{"Ref" : "ApplicationName"},"emr-service-sg"]]}},
+					{"Key" : "AWS Service", "Value" : "Security Group"}
+				]
+			}
+		},
+		
+		
+		"IAMRoleEMR" : {
+			"Description" : "Q-IDW-EMR-Role",
+			"Type": "AWS::IAM::Role",
+			"Properties": {
+				"AssumeRolePolicyDocument": {
+					"Version" : "2012-10-17",
+					"Statement": [ {
+						"Effect": "Allow",
+						"Principal": {
+							"Service": [ "elasticmapreduce.amazonaws.com" ]
+						},
+						"Action": [ "sts:AssumeRole" ]
+					} ]
+				},
+				"Path": "/",
+				"ManagedPolicyArns" : [
+					"arn:aws:iam::aws:policy/AmazonRDSFullAccess",
+					"arn:aws:iam::aws:policy/AmazonEC2FullAccess",
+					"arn:aws:iam::aws:policy/AmazonS3FullAccess",
+					"arn:aws:iam::aws:policy/AmazonRedshiftFullAccess",
+					"arn:aws:iam::aws:policy/AmazonElasticMapReduceFullAccess"
+				],
+				"RoleName" :  {"Fn::Join" : ["-", [{"Ref" : "EnvironmentType"},{"Ref" : "ApplicationName"},"emr-role"]]}
+			}
+		},
+		"IAMRoleEMREC2" : {
+			"Description" : "Q-IDW-EMR-Ec2-Role",
+			"Type": "AWS::IAM::Role",
+			"Properties": {
+				"AssumeRolePolicyDocument": {
+					"Version" : "2012-10-17",
+					"Statement": [ {
+						"Effect": "Allow",
+						"Principal": {
+							"Service": [ "ec2.amazonaws.com" ]
+						},
+						"Action": [ "sts:AssumeRole" ]
+					} ]
+				},
+				"Path": "/",
+				"ManagedPolicyArns" : [
+					"arn:aws:iam::aws:policy/AmazonRDSFullAccess",
+					"arn:aws:iam::aws:policy/AmazonEC2FullAccess",
+					"arn:aws:iam::aws:policy/AmazonS3FullAccess",
+					"arn:aws:iam::aws:policy/AmazonRedshiftFullAccess",
+					"arn:aws:iam::aws:policy/service-role/AmazonElasticMapReduceforEC2Role"
+				],
+				"RoleName" :  {"Fn::Join" : ["-", [{"Ref" : "EnvironmentType"},{"Ref" : "ApplicationName"},"emr-ec2-role"]]}
+			}
+		},
+		"IAMRoleEMREC2Profile" : {
+			"Type": "AWS::IAM::InstanceProfile",
+			"Properties": {
+				"Roles": [ { "Ref" : "IAMRoleEMREC2"} ],
+				"InstanceProfileName": {"Fn::Join" : ["-", [{"Ref" : "EnvironmentType"},{"Ref" : "ApplicationName"},"emr-ec2-profile"]]}
+			}
+		},
+		
+		"ingress1": {
+			"Type": "AWS::EC2::SecurityGroupIngress",
+			"Properties": {
+				"GroupId": {
+					"Ref": "sgElasticMapReduceslave"
+				},
+				"IpProtocol": "tcp",
+				"FromPort": "0",
+				"ToPort": "65535",
+				"SourceSecurityGroupId": {
+				  "Ref": "sgElasticMapReducemaster"
+				}
+			}
+		},
+		"ingress2": {
+			"Type": "AWS::EC2::SecurityGroupIngress",
+			"Properties": {
+				"GroupId": {
+					"Ref": "sgElasticMapReduceslave"
+				},
+				"IpProtocol": "udp",
+				"FromPort": "0",
+				"ToPort": "65535",
+				"SourceSecurityGroupId": {
+					"Ref": "sgElasticMapReducemaster"
+				}
+			}
+		},
+		"ingress3": {
+			"Type": "AWS::EC2::SecurityGroupIngress",
+			"Properties": {
+				"GroupId": {
+					"Ref": "sgElasticMapReduceslave"
+				},
+				"IpProtocol": "icmp",
+				"FromPort": "-1",
+				"ToPort": "-1",
+				"SourceSecurityGroupId": {
+					"Ref": "sgElasticMapReducemaster"
+				}
+			}
+		},
+		"ingress4": {
+			"Type": "AWS::EC2::SecurityGroupIngress",
+			"Properties": {
+				"GroupId": {
+					"Ref": "sgElasticMapReducemaster"
+				},
+				"IpProtocol": "tcp",
+				"FromPort": "0",
+				"ToPort": "65535",
+				"SourceSecurityGroupId": {
+					"Ref": "sgElasticMapReducemaster"
+				}
+			}
+		},
+		"ingress5": {
+			"Type": "AWS::EC2::SecurityGroupIngress",
+			"Properties": {
+				"GroupId": {
+					"Ref": "sgElasticMapReducemaster"
+				},
+				"IpProtocol": "udp",
+				"FromPort": "0",
+				"ToPort": "65535",
+				"SourceSecurityGroupId": {
+				  "Ref": "sgElasticMapReducemaster"
+				}
+			}
+		},
+		"ingress6": {
+			"Type": "AWS::EC2::SecurityGroupIngress",
+			"Properties": {
+				"GroupId": {
+				  "Ref": "sgElasticMapReducemaster"
+				},
+				"IpProtocol": "icmp",
+				"FromPort": "-1",
+				"ToPort": "-1",
+				"SourceSecurityGroupId": {
+				  "Ref": "sgElasticMapReducemaster"
+				}
+			}
+		},
+		"ingress7": {
+			"Type": "AWS::EC2::SecurityGroupIngress",
+			"Properties": {
+				"GroupId": {
+					"Ref": "sgElasticMapReduceslave"
+				},
+				"IpProtocol": "tcp",
+				"FromPort": "0",
+				"ToPort": "65535",
+				"SourceSecurityGroupId": {
+					"Ref": "sgElasticMapReduceslave"
+				}
+			}
+		},
+		"ingress8": {
+			"Type": "AWS::EC2::SecurityGroupIngress",
+			"Properties": {
+				"GroupId": {
+				  "Ref": "sgElasticMapReduceslave"
+				},
+				"IpProtocol": "udp",
+				"FromPort": "0",
+				"ToPort": "65535",
+				"SourceSecurityGroupId": {
+				  "Ref": "sgElasticMapReduceslave"
+				}
+			}
+		},
+		"ingress9": {
+			"Type": "AWS::EC2::SecurityGroupIngress",
+			"Properties": {
+				"GroupId": {
+				  "Ref": "sgElasticMapReduceslave"
+				},
+				"IpProtocol": "icmp",
+				"FromPort": "-1",
+				"ToPort": "-1",
+				"SourceSecurityGroupId": {
+				  "Ref": "sgElasticMapReduceslave"
+				}
+			}
+		},
+		"ingress10": {
+			"Type": "AWS::EC2::SecurityGroupIngress",
+			"Properties": {
+				"GroupId": {
+					"Ref": "sgElasticMapReducemaster"
+				},
+				"IpProtocol": "tcp",
+				"FromPort": "0",
+				"ToPort": "65535",
+				"SourceSecurityGroupId": {
+				  "Ref": "sgElasticMapReduceslave"
+				}
+			}
+		},
+		"ingress11": {
+			"Type": "AWS::EC2::SecurityGroupIngress",
+			"Properties": {
+				"GroupId": {
+					"Ref": "sgElasticMapReducemaster"
+				},
+				"IpProtocol": "udp",
+				"FromPort": "0",
+				"ToPort": "65535",
+				"SourceSecurityGroupId": {
+					"Ref": "sgElasticMapReduceslave"
+				}
+			}
+		},
+		"ingress12": {
+			"Type": "AWS::EC2::SecurityGroupIngress",
+			"Properties": {
+				"GroupId": {
+					"Ref": "sgElasticMapReducemaster"
+				},
+				"IpProtocol": "icmp",
+				"FromPort": "-1",
+				"ToPort": "-1",
+				"SourceSecurityGroupId": {
+					"Ref": "sgElasticMapReduceslave"
+				}
+			}
+		},
+		"egress2": {
+			"Type": "AWS::EC2::SecurityGroupEgress",
+			"Properties": {
+				"GroupId": {
+					"Ref": "sgElasticMapReduceslave"
+				},
+				"IpProtocol": "-1",
+				"CidrIp": "0.0.0.0/0"
+			}
+		},
+		"egress1": {
+			"Type": "AWS::EC2::SecurityGroupEgress",
+			"Properties": {
+				"GroupId": {
+					"Ref": "sgElasticMapReducemaster"
+				},
+				"IpProtocol": "-1",
+				"CidrIp": "0.0.0.0/0"
+			}
+		},
+		"egress3": {
+			"Type": "AWS::EC2::SecurityGroupEgress",
+			"Properties": {
+				"GroupId": {
+					"Ref": "sgElasticMapReduceService"
+				},
+				"IpProtocol": "TCP",
+				"FromPort" : 8443,
+				"ToPort" : 8443,
+				"DestinationSecurityGroupId": {"Ref" : "sgElasticMapReduceslave"}
+			}
+		},
+		"egress4": {
+			"Type": "AWS::EC2::SecurityGroupEgress",
+			"Properties": {
+				"GroupId": {
+					"Ref": "sgElasticMapReduceService"
+				},
+				"IpProtocol": "TCP",
+				"FromPort" : 8443,
+				"ToPort" : 8443,
+				"DestinationSecurityGroupId": {"Ref" : "sgElasticMapReducemaster"}
+			}
+		}
+	
+		
+	}
+}

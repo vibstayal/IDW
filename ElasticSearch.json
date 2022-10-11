@@ -1,0 +1,44 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "IDW Lambda Cloud Formation Script",
+    "Metadata" : {
+        "AWS::CloudFormation::Interface" : {
+            "ParameterGroups" : [
+                {
+                    "Label" : { "default" : "Global Name" },
+                    "Parameters" : [ "EnvironmentType" ]
+                }
+            ]
+        }
+    },
+    "Parameters" : {
+        "EnvironmentType": {
+            "Description": "The environment type",
+            "Type": "String",
+            "Default": "q",
+            "AllowedValues" : [ "d", "q", "u", "p"],
+            "ConstraintDescription": "Select Environment type from Drop-down."
+        }
+    },
+    "Resources": {
+        "IDWElasticSearchDomain" : {
+            "Type" : "AWS::Elasticsearch::Domain",
+            "Properties" : {
+                "DomainName": "u-idw-elasticsearch-public",
+                "EBSOptions": {
+                    "EBSEnabled": true,
+                    "Iops": 0,
+                    "VolumeSize": 10,
+                    "VolumeType": "gp2"
+                },
+                "ElasticsearchClusterConfig": {
+                    "DedicatedMasterEnabled": "false",
+                    "InstanceCount": "1",
+                    "ZoneAwarenessEnabled": "false",
+                    "InstanceType": "t2.small.elasticsearch"
+                },
+                "ElasticsearchVersion": "5.5"
+            }
+        }
+    }
+}
